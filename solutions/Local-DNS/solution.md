@@ -134,3 +134,25 @@ In this task we are going to **poison the DNS cache**. By this we mean that inst
 For this task we actually can use the previous script; because in the previous script we had not specified any specific source IP in the `filter` section. This means that actually in the previous experiment in addition to attacking to victim, we also have had poisoned the DNC cache. The below screenshot verifies this:
  ![a](/screenshots/task2.png)
  At first in the dns cache ,the ip address of `example.com` is stored correctly, We then flush this cache and start the script and then dig `example.com` from the user we start the recursive DNS query algorithm of the Local DNS; the attacker sniffs 3 DNS queries, the original one from the victim, which we kindly respond to; and two others coming from local DNS trying to ask the outside world about the IP of `example.com` which we respond to those to. This as you can see results in a poisoned cache.
+
+ ## Task 3
+Now we want to have control over all the `example.com` domain not only the `www.example.com`; to this end we simply need to provide a authoritative name server for the `example.com` domain in the Authority section of DNS response, note that normally we would also add an A record for our name server in the additional section, but here this is not necessary, since in the bind9 configuration we already have an A record for `ns.attacker.com`. This is the modified parts of the script:
+
+```python
+# ...
+ATTCKER_NS = 'ns.attacker32.com'
+def spoof_dns(pkt):
+        # ...
+           # The Authority Section
+        NSsec1 = DNSRR(rrname='example.com', type='NS',ttl=259200, rdata=ATTCKER_NS)
+        # Create a DNS object
+        dns = DNS(id=pkt[DNS].id, qd=pkt[DNS].qd, aa=1, rd=0,qr=1,qdcount=1, ancount=1,nscount=1, arcount=0, an=Anssec, ns= NSsec1)
+        # ...   
+# ...
+```
+Note that when creating the `dns` layer we have changed `nscount` to `1` and set `an` to `NSsec1`. Below you can see the script in action:
+
+![a](/screenshots/task3.png)
+The procedure is exactly like before; note that now in the dns cache we have an NS record!
+
+## Task 4
